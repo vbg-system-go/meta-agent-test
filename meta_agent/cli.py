@@ -61,43 +61,32 @@ def main():
         parser.print_help()
         sys.exit(1)
 
+    def write_and_report(path: str, content: str) -> None:
+        write_file(path, content)
+        print(f"Generated: {path}")
+
     # Generate the agent
     try:
         agent_implementation = asyncio.run(generate_agent(specification))
-        
-        # Create output directory if it doesn't exist
+
         os.makedirs(args.output, exist_ok=True)
-        
-        # Write main file
-        main_file_path = os.path.join(args.output, "agent.py")
-        write_file(main_file_path, agent_implementation.main_file)
-        print(f"Generated main agent file: {main_file_path}")
-        
-        # Write additional files
+
+        write_and_report(os.path.join(args.output, "agent.py"), agent_implementation.main_file)
+
         for filename, content in agent_implementation.additional_files.items():
-            file_path = os.path.join(args.output, filename)
-            write_file(file_path, content)
-            print(f"Generated additional file: {file_path}")
-        
-        # Save installation instructions
+            write_and_report(os.path.join(args.output, filename), content)
+
         if agent_implementation.installation_instructions:
-            install_file_path = os.path.join(args.output, "INSTALL.md")
-            write_file(install_file_path, agent_implementation.installation_instructions)
-            print(f"Generated installation instructions file: {install_file_path}")
-        
-        # Save usage examples
+            write_and_report(os.path.join(args.output, "INSTALL.md"), agent_implementation.installation_instructions)
+
         if agent_implementation.usage_examples:
-            usage_file_path = os.path.join(args.output, "USAGE.md")
-            write_file(usage_file_path, agent_implementation.usage_examples)
-            print(f"Generated usage examples file: {usage_file_path}")
-        
-        # Print installation and usage instructions
+            write_and_report(os.path.join(args.output, "USAGE.md"), agent_implementation.usage_examples)
+
         print("\nInstallation Instructions:")
         print(agent_implementation.installation_instructions)
-        
         print("\nUsage Examples:")
         print(agent_implementation.usage_examples)
-        
+
     except Exception as e:
         print(f"Error generating agent: {e}")
         sys.exit(1)

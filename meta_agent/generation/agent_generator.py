@@ -4,11 +4,8 @@ Agent creation code generator for the meta-agent package.
 This module contains the main meta agent that orchestrates the whole agent generation process.
 """
 
-from typing import Optional, List, Dict, Any
-from pydantic import BaseModel
 from agents import Agent, function_tool
 
-# Import all specialized agents
 from meta_agent.design.analyzer import analyze_agent_specification
 from meta_agent.design.tool_designer import design_agent_tools
 from meta_agent.design.output_designer import design_output_type
@@ -19,17 +16,6 @@ from meta_agent.generation.guardrail_generator import generate_guardrail_code
 from meta_agent.generation.runner_generator import generate_runner_code
 from meta_agent.generation.assembler import assemble_agent_implementation
 from meta_agent.validation.validator import validate_agent_implementation
-
-
-class AgentSpec(BaseModel):
-    """Specification for agent creation"""
-    name: str
-    instructions: str
-    model: Optional[str] = "gpt-4o"
-    tools: List[Dict[str, Any]] = []
-    output_type: Optional[str] = None
-    guardrails: List[Dict[str, Any]] = []
-    handoffs: List[Dict[str, Any]] = []
 
 
 @function_tool()

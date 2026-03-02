@@ -11,29 +11,10 @@ from pydantic import BaseModel, Field
 
 class AgentSpecification(BaseModel):
     """Input specification for an agent to be created."""
-    name: str = Field(description="Name of the agent")
-    description: str = Field(description="Brief description of the agent's purpose", default="")
-    instructions: str = Field(description="Detailed instructions for the agent", default="")
-    tools: List[Dict[str, Any]] = Field(description="List of tools the agent needs", default_factory=list)
+    name: str = Field(default="DefaultAgent", description="Name of the agent")
+    description: str = Field(default="", description="Brief description of the agent's purpose")
+    instructions: str = Field(default="", description="Detailed instructions for the agent")
+    tools: List[Dict[str, Any]] = Field(default_factory=list, description="List of tools the agent needs")
     output_type: Optional[str] = None
-    guardrails: List[Dict[str, Any]] = Field(description="List of guardrails to implement", default_factory=list)
-    handoffs: List[Dict[str, Any]] = Field(description="List of handoffs to other agents", default_factory=list)
-    
-    model_config = {
-        "json_schema_extra": lambda schema: schema.pop("required", None)
-    }
-    
-    def __init__(self, **data):
-        if 'name' not in data:
-            data['name'] = "DefaultAgent"
-        if 'description' not in data:
-            data['description'] = ""
-        if 'instructions' not in data:
-            data['instructions'] = ""
-        if 'tools' not in data:
-            data['tools'] = []
-        if 'guardrails' not in data:
-            data['guardrails'] = []
-        if 'handoffs' not in data:
-            data['handoffs'] = []
-        super().__init__(**data)
+    guardrails: List[Dict[str, Any]] = Field(default_factory=list, description="List of guardrails to implement")
+    handoffs: List[Dict[str, Any]] = Field(default_factory=list, description="List of handoffs to other agents")

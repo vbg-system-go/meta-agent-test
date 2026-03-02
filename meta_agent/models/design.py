@@ -17,17 +17,6 @@ from meta_agent.models.guardrail import GuardrailDefinition
 class AgentDesign(BaseModel):
     """Complete design for an agent."""
     specification: AgentSpecification = Field(description="Basic agent specification")
-    tools: List[ToolDefinition] = Field(description="Detailed tool definitions")
+    tools: List[ToolDefinition] = Field(default_factory=list, description="Detailed tool definitions")
     output_type: Optional[OutputTypeDefinition] = None
-    guardrails: List[GuardrailDefinition] = Field(description="Detailed guardrail definitions")
-    
-    model_config = {
-        "json_schema_extra": lambda schema: schema.pop("required", None)
-    }
-    
-    def __init__(self, **data):
-        if 'tools' not in data:
-            data['tools'] = []
-        if 'guardrails' not in data:
-            data['guardrails'] = []
-        super().__init__(**data)
+    guardrails: List[GuardrailDefinition] = Field(default_factory=list, description="Detailed guardrail definitions")
