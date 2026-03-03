@@ -18,6 +18,8 @@ def design_guardrails() -> List[GuardrailDefinition]:
     Returns:
         List of guardrail definitions
     """
-    # This is a dummy implementation that will be replaced by the actual LLM call
-    # The real implementation will be called through the OpenAI Agents SDK
+    # TODO: implement with actual LLM call.
+    # The real version decides which guardrails are needed: input guardrails
+    # intercept user queries before the agent runs; output guardrails validate
+    # (and optionally modify) the agent's response before it reaches the caller.
     return []

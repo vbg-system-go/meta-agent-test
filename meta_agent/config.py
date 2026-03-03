@@ -17,9 +17,15 @@ class ConfigurationError(Exception):
     pass
 
 class Config:
-    """Centralized configuration management class."""
-    
-    # Default configuration values
+    """Centralized configuration management class.
+
+    Implemented as a singleton so that load_config() only has to be called
+    once (by the CLI or core.py); every other module that imports `config`
+    shares the same already-loaded instance.
+    """
+
+    # Keys and their default values. Environment variables with these names
+    # will override the defaults when load_config() is called.
     _defaults = {
         "OPENAI_API_KEY": None,
         "OPENAI_MODEL": "gpt-4",
@@ -27,19 +33,21 @@ class Config:
         "OUTPUT_DIR": "generated_agents",
         "DEBUG": False,
     }
-    
+
+    # Singleton bookkeeping — shared across all instances.
     _instance = None
     _config: Dict[str, Any] = {}
     _initialized = False
-    
+
     def __new__(cls):
         """Singleton pattern to ensure only one config instance exists."""
         if cls._instance is None:
             cls._instance = super(Config, cls).__new__(cls)
         return cls._instance
-    
+
     def __init__(self):
         """Initialize the configuration if not already initialized."""
+        # Guard prevents re-loading every time someone calls Config().
         if not self._initialized:
             self.load_config()
             Config._initialized = True
@@ -49,17 +57,20 @@ class Config:
         Load configuration from environment variables and .env file.
         Environment variables take precedence over .env file values.
         """
-        # Load from .env file first
+        # .env file is loaded first so environment variables set in the shell
+        # can still override values in the file (load_dotenv doesn't overwrite
+        # existing env vars by default).
         load_dotenv()
-        
-        # Populate config dictionary with defaults
+
+        # Start with a fresh copy of the defaults on every load.
         self._config = self._defaults.copy()
-        
-        # Override with environment variables
+
+        # Environment variables take precedence over defaults and .env values.
         for key in self._config.keys():
             env_value = os.environ.get(key)
             if env_value is not None:
-                # Convert string boolean values
+                # Environment variables are always strings; convert "true"/"false"
+                # to actual booleans so callers can use `if config.debug:` etc.
                 if env_value.lower() == 'true':
                     self._config[key] = True
                 elif env_value.lower() == 'false':

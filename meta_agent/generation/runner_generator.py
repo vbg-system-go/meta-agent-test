@@ -11,21 +11,17 @@ from agents import function_tool
 def generate_runner_code() -> str:
     """
     Generate code that runs the agent.
-    
+
     Returns:
-        Python code that runs the agent
+        Python code providing an async main() entry point and a __main__ guard.
     """
-    # This is a dummy implementation that will be replaced by the actual LLM call
-    # The real implementation will be called through the OpenAI Agents SDK
+    # TODO: implement with actual LLM call.
+    # The real version customises the query and any pre/post-processing steps
+    # based on the agent design.
     return """
 async def main():
-    # Initialize the runner
-    runner = Runner()
-    
-    # Run the agent
+    # Run the agent with a sample query
     result = await Runner.run(agent, "Your query here")
-    
-    # Print the result
     print(result)
 
 if __name__ == "__main__":

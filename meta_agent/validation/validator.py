@@ -15,10 +15,12 @@ def validate_agent_implementation():
     Returns:
         Validation results
     """
-    # This is a dummy implementation that will be replaced by the actual LLM call
-    # The real implementation will be called through the OpenAI Agents SDK
+    # TODO: implement with actual LLM call.
+    # The real version will check: Python syntax is valid, all imports resolve,
+    # the agent variable is defined, and ideally run a smoke-test query.
+    # For now it always reports success so the pipeline can complete.
     return {
         "valid": True,
         "errors": [],
-        "warnings": []
+        "warnings": [],
     }

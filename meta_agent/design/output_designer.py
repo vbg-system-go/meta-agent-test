@@ -18,6 +18,8 @@ def design_output_type() -> Optional[OutputTypeDefinition]:
     Returns:
         Output type definition or None if not needed
     """
-    # This is a dummy implementation that will be replaced by the actual LLM call
-    # The real implementation will be called through the OpenAI Agents SDK
+    # TODO: implement with actual LLM call.
+    # The real version decides whether the agent needs a structured Pydantic
+    # output type (e.g. for agents that return JSON). Returns None for agents
+    # that produce free-form text responses.
     return None
