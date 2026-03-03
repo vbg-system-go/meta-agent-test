@@ -18,6 +18,8 @@ def design_agent_tools() -> List[ToolDefinition]:
     Returns:
         List of tool definitions
     """
-    # This is a dummy implementation that will be replaced by the actual LLM call
-    # The real implementation will be called through the OpenAI Agents SDK
+    # TODO: implement with actual LLM call.
+    # The real version reads the AgentSpecification and decides which tools the
+    # agent needs, returning fully specified ToolDefinition objects (name,
+    # description, parameters, return_type, implementation sketch).
     return []

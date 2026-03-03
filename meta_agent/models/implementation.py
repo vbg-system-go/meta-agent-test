@@ -10,17 +10,17 @@ from pydantic import BaseModel, Field
 
 
 class AgentImplementation(BaseModel):
-    """Complete agent implementation with all files."""
-    main_file: str = Field(description="Content of the main Python file")
-    additional_files: Dict[str, str] = Field(description="Additional files needed (filename: content)")
-    installation_instructions: str = Field(description="Instructions for installing dependencies")
-    usage_examples: str = Field(description="Examples of how to use the agent")
-    
-    model_config = {
-        "json_schema_extra": lambda schema: schema.pop("required", None)
-    }
-    
-    def __init__(self, **data):
-        if 'additional_files' not in data:
-            data['additional_files'] = {}
-        super().__init__(**data)
+    """Complete agent implementation with all files.
+
+    Pipeline role: the final deliverable returned by generate_agent(). The CLI
+    writes each field to disk so the user ends up with a ready-to-run project.
+    """
+
+    # main_file → written to agent.py in the output directory
+    main_file: str = Field(default="", description="Content of the main Python file")
+    # additional_files maps filename → content, e.g. {"requirements.txt": "..."}
+    additional_files: Dict[str, str] = Field(default_factory=dict, description="Additional files needed (filename: content)")
+    # installation_instructions → written to INSTALL.md
+    installation_instructions: str = Field(default="", description="Instructions for installing dependencies")
+    # usage_examples → written to USAGE.md
+    usage_examples: str = Field(default="", description="Examples of how to use the agent")

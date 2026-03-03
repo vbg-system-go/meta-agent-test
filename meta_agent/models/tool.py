@@ -10,9 +10,17 @@ from pydantic import BaseModel, Field
 
 
 class ToolDefinition(BaseModel):
-    """Definition of a tool for an agent."""
+    """Definition of a tool for an agent.
+
+    Pipeline role: produced by Step 2 (tool designer). Each ToolDefinition
+    describes one @function_tool the generated agent will have access to.
+    The code generator (Step 5) turns this into the actual Python function.
+    """
+
     name: str = Field(description="Name of the tool")
     description: str = Field(description="Description of what the tool does")
+    # Each parameter dict has keys: name, type, required, (optional) default.
     parameters: List[Dict[str, Any]] = Field(description="Parameters for the tool")
     return_type: str = Field(description="Return type of the tool")
+    # implementation holds the finished @function_tool-decorated source code.
     implementation: str = Field(description="Python code implementation of the tool")

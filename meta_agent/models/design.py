@@ -15,19 +15,15 @@ from meta_agent.models.guardrail import GuardrailDefinition
 
 
 class AgentDesign(BaseModel):
-    """Complete design for an agent."""
+    """Complete design for an agent.
+
+    Pipeline role: assembled after Steps 1-4. Bundles the parsed specification
+    with the fully typed tool, output, and guardrail definitions so that every
+    code-generation step (5-9) has the full picture in one object.
+    """
+
     specification: AgentSpecification = Field(description="Basic agent specification")
-    tools: List[ToolDefinition] = Field(description="Detailed tool definitions")
-    output_type: Optional[OutputTypeDefinition] = None
-    guardrails: List[GuardrailDefinition] = Field(description="Detailed guardrail definitions")
-    
-    model_config = {
-        "json_schema_extra": lambda schema: schema.pop("required", None)
-    }
-    
-    def __init__(self, **data):
-        if 'tools' not in data:
-            data['tools'] = []
-        if 'guardrails' not in data:
-            data['guardrails'] = []
-        super().__init__(**data)
+    # ToolDefinition objects have typed parameters, unlike the raw dicts in AgentSpecification.
+    tools: List[ToolDefinition] = Field(default_factory=list, description="Detailed tool definitions")
+    output_type: Optional[OutputTypeDefinition] = None  # None means the agent returns plain text
+    guardrails: List[GuardrailDefinition] = Field(default_factory=list, description="Detailed guardrail definitions")

@@ -17,8 +17,10 @@ def analyze_agent_specification():
     Returns:
         Structured agent specification
     """
-    # This is a dummy implementation that will be replaced by the actual LLM call
-    # The real implementation will be called through the OpenAI Agents SDK
+    # TODO: implement with actual LLM call.
+    # The real version will parse the natural-language specification text and
+    # extract: agent name, description, instructions, required tools, output
+    # type hint, guardrails, and handoffs into an AgentSpecification object.
     return AgentSpecification(
         name="DefaultAgent",
         description="Default agent description",

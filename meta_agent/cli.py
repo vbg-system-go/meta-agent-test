@@ -16,10 +16,11 @@ from meta_agent.utils import write_file
 
 def main():
     """Main entry point for the CLI."""
-    # Load environment variables from .env file
+    # Load .env and populate the global Config singleton before anything else.
     load_config()
 
-    # Check for API key
+    # Fail fast with a clear message if no API key is available; the generation
+    # pipeline would fail anyway but with a less helpful error from the SDK.
     if not check_api_key():
         print_api_key_warning()
         sys.exit(1)
@@ -27,6 +28,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="Meta Agent - Generate OpenAI Agents SDK agents from natural language specifications"
     )
+    # The spec can be supplied inline (--spec) or via a file (--file).
+    # Exactly one of the two must be provided.
     parser.add_argument(
         "--spec", "-s",
         type=str,
@@ -46,9 +49,10 @@ def main():
 
     args = parser.parse_args()
 
-    # Get specification from file or command line
+    # ── Resolve the specification text ────────────────────────────────────────
     specification = ""
     if args.file:
+        # Read spec from a file (useful for long or multi-line specs).
         try:
             with open(args.file, "r") as f:
                 specification = f.read()
@@ -58,46 +62,42 @@ def main():
     elif args.spec:
         specification = args.spec
     else:
+        # Neither flag was given; print usage and exit.
         parser.print_help()
         sys.exit(1)
 
-    # Generate the agent
+    def write_and_report(path: str, content: str) -> None:
+        """Write a file to disk and print a confirmation line."""
+        write_file(path, content)
+        print(f"Generated: {path}")
+
+    # ── Run the generation pipeline ───────────────────────────────────────────
+    # asyncio.run() starts a fresh event loop for the async generate_agent call.
     try:
         agent_implementation = asyncio.run(generate_agent(specification))
-        
-        # Create output directory if it doesn't exist
+
+        # Create the output directory if it doesn't already exist.
         os.makedirs(args.output, exist_ok=True)
-        
-        # Write main file
-        main_file_path = os.path.join(args.output, "agent.py")
-        write_file(main_file_path, agent_implementation.main_file)
-        print(f"Generated main agent file: {main_file_path}")
-        
-        # Write additional files
+
+        # Write all output files.
+        write_and_report(os.path.join(args.output, "agent.py"), agent_implementation.main_file)
+
+        # additional_files contains supporting files such as requirements.txt.
         for filename, content in agent_implementation.additional_files.items():
-            file_path = os.path.join(args.output, filename)
-            write_file(file_path, content)
-            print(f"Generated additional file: {file_path}")
-        
-        # Save installation instructions
+            write_and_report(os.path.join(args.output, filename), content)
+
         if agent_implementation.installation_instructions:
-            install_file_path = os.path.join(args.output, "INSTALL.md")
-            write_file(install_file_path, agent_implementation.installation_instructions)
-            print(f"Generated installation instructions file: {install_file_path}")
-        
-        # Save usage examples
+            write_and_report(os.path.join(args.output, "INSTALL.md"), agent_implementation.installation_instructions)
+
         if agent_implementation.usage_examples:
-            usage_file_path = os.path.join(args.output, "USAGE.md")
-            write_file(usage_file_path, agent_implementation.usage_examples)
-            print(f"Generated usage examples file: {usage_file_path}")
-        
-        # Print installation and usage instructions
+            write_and_report(os.path.join(args.output, "USAGE.md"), agent_implementation.usage_examples)
+
+        # Also print the instructions to stdout for quick reference.
         print("\nInstallation Instructions:")
         print(agent_implementation.installation_instructions)
-        
         print("\nUsage Examples:")
         print(agent_implementation.usage_examples)
-        
+
     except Exception as e:
         print(f"Error generating agent: {e}")
         sys.exit(1)

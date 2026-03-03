@@ -3,10 +3,17 @@ Core functionality for the meta-agent package.
 
 This module implements the main generate_agent function that orchestrates
 the agent generation process.
+
+Pipeline overview (11 steps):
+  Design phase  (steps 1-4): parse the spec, decide tools / output type / guardrails
+  Code phase    (steps 5-9): generate Python code for every component
+  Assembly      (step 10):   combine all code into a single deployable file set
+  Validation    (step 11):   sanity-check the finished implementation
 """
 
-import asyncio
-from typing import Dict, Any
+import json
+import logging
+from typing import Any
 
 from agents import Runner
 
@@ -14,404 +21,30 @@ from meta_agent.models import (
     AgentSpecification,
     AgentDesign,
     AgentCode,
-    AgentImplementation
+    AgentImplementation,
 )
 from meta_agent.generation.agent_generator import agent_generator
 from meta_agent.config import load_config, check_api_key, print_api_key_warning
 from meta_agent.models.output import OutputTypeDefinition
 
+logger = logging.getLogger(__name__)
 
-async def generate_agent(specification: str) -> AgentImplementation:
-    """
-    Generate an agent based on a natural language specification.
-    
-    Args:
-        specification: Natural language description of the agent to create
-        
-    Returns:
-        Complete agent implementation
-    """
-    # Check for empty specification
-    if not specification or not specification.strip():
-        raise ValueError("Agent specification cannot be empty")
-        
-    # Load configuration
-    load_config()
-    
-    # Check for API key
-    if not check_api_key():
-        print_api_key_warning()
-    
-    # Initialize the runner
-    runner = Runner()
-    
-    # Step 1: Analyze the specification
-    print("Step 1: Analyzing agent specification...")
-    agent_spec_result = await Runner.run(
-        agent_generator,
-        f"Analyze this agent specification and extract structured information: {specification}"
-    )
-    print(f"Agent spec result type: {type(agent_spec_result)}")
-    print(f"Agent spec result: {agent_spec_result}")
-    
-    # Extract agent_spec from RunResult
-    agent_spec_dict = {}
-    if hasattr(agent_spec_result, 'final_output') and agent_spec_result.final_output:
-        try:
-            # First try to parse as JSON
-            import json
-            agent_spec_dict = json.loads(agent_spec_result.final_output)
-        except:
-            # If parsing fails, create a basic spec from the specification text
-            agent_spec_dict = {
-                "name": "DefaultAgent",
-                "description": "Agent created from specification",
-                "instructions": specification
-            }
-    
-    # Ensure required fields are present
-    if "name" not in agent_spec_dict:
-        agent_spec_dict["name"] = "DefaultAgent"
-    if "description" not in agent_spec_dict:
-        agent_spec_dict["description"] = "Agent created from specification"
-    if "instructions" not in agent_spec_dict:
-        agent_spec_dict["instructions"] = specification
-    
-    agent_specification = AgentSpecification(**agent_spec_dict)
-    
-    # Step 2: Design the tools
-    print("Step 2: Designing agent tools...")
-    tools_result = await Runner.run(
-        agent_generator,
-        f"Design tools for this agent: {agent_specification.model_dump_json()}"
-    )
-    print(f"Tools result type: {type(tools_result)}")
-    print(f"Tools result: {tools_result}")
-    
-    # Extract tools from RunResult
-    tools = []
-    if hasattr(tools_result, 'final_output') and tools_result.final_output:
-        try:
-            # Try to parse the final_output as JSON
-            import json
-            tools_json = json.loads(tools_result.final_output)
-            if isinstance(tools_json, list):
-                tools = tools_json
-        except:
-            # If parsing fails, use an empty list
-            tools = []
-    
-    # Step 3: Design the output type (if needed)
-    print("Step 3: Designing output type (if needed)...")
-    output_type_result = await Runner.run(
-        agent_generator,
-        f"Design an output type for this agent if needed: {agent_specification.model_dump_json()}"
-    )
-    print(f"Output type result type: {type(output_type_result)}")
-    print(f"Output type result: {output_type_result}")
-    
-    # Extract output_type from RunResult
-    output_type = None
-    if hasattr(output_type_result, 'final_output') and output_type_result.final_output:
-        try:
-            # Try to parse the final_output as JSON
-            import json
-            output_type_json = json.loads(output_type_result.final_output)
-            if isinstance(output_type_json, dict):
-                output_type = OutputTypeDefinition(**output_type_json)
-        except:
-            # If parsing fails, use None
-            output_type = None
-    
-    # Step 4: Design the guardrails
-    print("Step 4: Designing guardrails...")
-    guardrails_result = await Runner.run(
-        agent_generator,
-        f"Design guardrails for this agent: {agent_specification.model_dump_json()}"
-    )
-    print(f"Guardrails result type: {type(guardrails_result)}")
-    print(f"Guardrails result: {guardrails_result}")
-    
-    # Extract guardrails from RunResult
-    guardrails = []
-    if hasattr(guardrails_result, 'final_output') and guardrails_result.final_output:
-        try:
-            # Try to parse the final_output as JSON
-            import json
-            guardrails_json = json.loads(guardrails_result.final_output)
-            if isinstance(guardrails_json, list):
-                guardrails = guardrails_json
-        except:
-            # If parsing fails, use an empty list
-            guardrails = []
-    
-    # Create the agent design
-    agent_design = AgentDesign(
-        specification=agent_specification,
-        tools=tools,
-        output_type=output_type,
-        guardrails=guardrails
-    )
-    
-    # Step 5: Generate tool code
-    print("Step 5: Generating tool code...")
-    tool_code_list = []
-    for tool in agent_design.tools:
-        tool_code = await Runner.run(
-            agent_generator,
-            f"Generate code for this tool: {tool}"
-        )
-        print(f"Tool code result type: {type(tool_code)}")
-        print(f"Tool code result: {tool_code}")
-        if hasattr(tool_code, 'final_output') and tool_code.final_output:
-            try:
-                tool_code_list.append(tool_code.final_output)
-            except:
-                tool_code_list.append("")
-    
-    # Step 6: Generate output type code (if needed)
-    print("Step 6: Generating output type code (if needed)...")
-    output_type_code = None
-    if agent_design.output_type:
-        output_type_code_result = await Runner.run(
-            agent_generator,
-            f"Generate code for this output type: {agent_design.output_type.model_dump_json()}"
-        )
-        print(f"Output type code result type: {type(output_type_code_result)}")
-        print(f"Output type code result: {output_type_code_result}")
-        if hasattr(output_type_code_result, 'final_output') and output_type_code_result.final_output:
-            try:
-                output_type_code = output_type_code_result.final_output
-            except:
-                output_type_code = ""
-    
-    # Step 7: Generate guardrail code
-    print("Step 7: Generating guardrail code...")
-    guardrail_code_list = []
-    for guardrail in agent_design.guardrails:
-        guardrail_code = await Runner.run(
-            agent_generator,
-            f"Generate code for this guardrail: {guardrail}"
-        )
-        print(f"Guardrail code result type: {type(guardrail_code)}")
-        print(f"Guardrail code result: {guardrail_code}")
-        if hasattr(guardrail_code, 'final_output') and guardrail_code.final_output:
-            try:
-                guardrail_code_list.append(guardrail_code.final_output)
-            except:
-                guardrail_code_list.append("")
-    
-    # Step 8: Generate agent creation code
-    print("Step 8: Generating agent creation code...")
-    agent_creation_code_result = await Runner.run(
-        agent_generator,
-        f"Generate code that creates an agent instance based on this design: {agent_design.model_dump_json()}"
-    )
-    print(f"Agent creation code result type: {type(agent_creation_code_result)}")
-    print(f"Agent creation code result: {agent_creation_code_result}")
-    agent_creation_code = ""
-    if hasattr(agent_creation_code_result, 'final_output') and agent_creation_code_result.final_output:
-        try:
-            agent_creation_code = agent_creation_code_result.final_output
-        except:
-            agent_creation_code = ""
-    
-    # Step 9: Generate runner code
-    print("Step 9: Generating runner code...")
-    runner_code_result = await Runner.run(
-        agent_generator,
-        f"Generate code that runs the agent: {agent_design.model_dump_json()}"
-    )
-    print(f"Runner code result type: {type(runner_code_result)}")
-    print(f"Runner code result: {runner_code_result}")
-    runner_code = ""
-    if hasattr(runner_code_result, 'final_output') and runner_code_result.final_output:
-        try:
-            runner_code = runner_code_result.final_output
-        except:
-            runner_code = ""
-    
-    # Create the agent code
-    agent_code = AgentCode(
-        main_code="",  # Will be assembled later
-        imports=[
-            "import os",
-            "import asyncio",
-            "from dotenv import load_dotenv",
-            "from agents import Runner, function_tool, output_guardrail, GuardrailFunctionOutput",
-            "from typing import Dict, List, Any, Optional",
-            "from pydantic import BaseModel, Field"
-        ],
-        tool_implementations=tool_code_list,
-        output_type_implementation=output_type_code,
-        guardrail_implementations=guardrail_code_list,
-        agent_creation=agent_creation_code,
-        runner_code=runner_code
-    )
-    
-    # Assemble the main code from all the components
-    main_code_parts = []
-    
-    # Add imports
-    main_code_parts.append("\n".join(agent_code.imports))
-    main_code_parts.append("\n\n# Tool implementations")
-    
-    # Add tool implementations
-    if agent_code.tool_implementations:
-        main_code_parts.append("\n\n".join(agent_code.tool_implementations))
-    
-    # Add output type implementation
-    if agent_code.output_type_implementation:
-        main_code_parts.append("\n\n# Output type implementation")
-        main_code_parts.append(agent_code.output_type_implementation)
-    
-    # Add guardrail implementations
-    if agent_code.guardrail_implementations:
-        main_code_parts.append("\n\n# Guardrail implementations")
-        main_code_parts.append("\n\n".join(agent_code.guardrail_implementations))
-    
-    # Add agent creation
-    if agent_code.agent_creation:
-        main_code_parts.append("\n\n# Agent creation")
-        main_code_parts.append(agent_code.agent_creation)
-    
-    # Add runner code
-    if agent_code.runner_code:
-        main_code_parts.append("\n\n# Runner code")
-        main_code_parts.append(agent_code.runner_code)
-    
-    # Add a run_agent function for external use
-    run_agent_function = """
-# Function to run the agent from external code
-async def run_agent(query: str):
-    # Initialize the runner
-    runner = Runner()
-    
-    # Run the agent
-    result = await Runner.run(agent, query)
-    
-    return result
-"""
-    main_code_parts.append("\n\n# External API")
-    main_code_parts.append(run_agent_function)
-    
-    # Set the main code
-    agent_code.main_code = "\n".join(main_code_parts)
-    
-    # Step 10: Assemble the implementation
-    print("Step 10: Assembling agent implementation...")
-    implementation_result = await Runner.run(
-        agent_generator,
-        f"Assemble the complete agent implementation: {agent_code.model_dump_json()}"
-    )
-    print(f"Implementation result type: {type(implementation_result)}")
-    print(f"Implementation result: {implementation_result}")
-    
-    # Ensure implementation_result is a dictionary and has all required fields
-    implementation_dict = {}
-    if hasattr(implementation_result, 'final_output') and implementation_result.final_output:
-        try:
-            import json
-            implementation_json = json.loads(implementation_result.final_output)
-            if isinstance(implementation_json, dict):
-                implementation_dict = implementation_json
-        except:
-            implementation_dict = {}
-    
-    # Add default values for required fields if they're missing, but preserve main_file if it exists
-    main_file_content = implementation_dict.get('main_file', agent_code.main_code or "# Main agent code will be generated here")
-    
-    # Ensure main_file contains TestAgent
-    if "TestAgent" not in main_file_content:
-        # Add agent creation code with the TestAgent name
-        agent_creation_code = """
-# Create the agent
-agent = Agent(
-    name="TestAgent",
-    instructions=\"\"\"Test instructions\"\"\"
-)
-"""
-        # Insert the agent creation code at an appropriate location
-        if "# External API" in main_file_content:
-            main_file_content = main_file_content.replace(
-                "# External API",
-                f"{agent_creation_code}\n# External API"
-            )
-        else:
-            # Append it to the end if the marker isn't found
-            main_file_content += f"\n{agent_creation_code}"
-    
-    implementation_dict['main_file'] = main_file_content
-    
-    if 'installation_instructions' not in implementation_dict:
-        implementation_dict['installation_instructions'] = """
-        # Installation Instructions
-        
-        1. Create a virtual environment: `python -m venv venv`
-        2. Activate the virtual environment: 
-           - Windows: `venv\\Scripts\\activate`
-           - macOS/Linux: `source venv/bin/activate`
-        3. Install dependencies: `pip install -r requirements.txt`
-        """
-    
-    if 'usage_examples' not in implementation_dict:
-        implementation_dict['usage_examples'] = """
-        # Usage Examples
-        
-        ```python
-        import asyncio
-        from agent import run_agent
-        
-        async def main():
-            result = await run_agent("Your query here")
-            print(result)
-        
-        if __name__ == "__main__":
-            asyncio.run(main())
-        ```
-        """
-    
-    if 'additional_files' not in implementation_dict:
-        implementation_dict['additional_files'] = {
-            "requirements.txt": "openai-agents>=0.0.6\npython-dotenv>=1.0.0"
-        }
-    
-    agent_implementation = AgentImplementation(**implementation_dict)
-    
-    # Step 11: Validate the implementation
-    print("Step 11: Validating agent implementation...")
-    validation_result = await Runner.run(
-        agent_generator,
-        f"Validate this agent implementation: {agent_implementation.model_dump_json()}"
-    )
-    print(f"Validation result type: {type(validation_result)}")
-    print(f"Validation result: {validation_result}")
-    
-    # Extract validation result
-    validation_message = "Validation completed successfully."
-    if hasattr(validation_result, 'final_output') and validation_result.final_output:
-        validation_message = validation_result.final_output
-    
-    print(f"Validation message: {validation_message}")
-    
-    # Ensure requirements.txt has the necessary dependencies
-    if "requirements.txt" not in agent_implementation.additional_files or not agent_implementation.additional_files["requirements.txt"]:
-        agent_implementation.additional_files["requirements.txt"] = "openai-agents>=0.0.6\npydantic>=2.0.0\npython-dotenv>=1.0.0\n"
-    
-    # Ensure installation instructions are provided
-    if not agent_implementation.installation_instructions:
-        agent_implementation.installation_instructions = """# Installation Instructions
+# ── Default fallback strings ──────────────────────────────────────────────────
+# Used when the LLM assembler doesn't return its own versions.
+# Stored as module-level constants so they're easy to update in one place.
+
+_DEFAULT_INSTALLATION = """\
+# Installation Instructions
 
 1. Create a virtual environment: `python -m venv venv`
-2. Activate the virtual environment: 
+2. Activate the virtual environment:
    - Windows: `venv\\Scripts\\activate`
    - macOS/Linux: `source venv/bin/activate`
 3. Install dependencies: `pip install -r requirements.txt`
 """
-    
-    # Ensure usage examples are provided
-    if not agent_implementation.usage_examples:
-        agent_implementation.usage_examples = """# Usage Examples
+
+_DEFAULT_USAGE = """\
+# Usage Examples
 
 ```python
 import asyncio
@@ -425,5 +58,266 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 """
-    
+
+_DEFAULT_REQUIREMENTS = "openai-agents>=0.0.6\npydantic>=2.0.0\npython-dotenv>=1.0.0\n"
+
+
+# ── Helper functions ──────────────────────────────────────────────────────────
+
+def _extract_json(result: Any, expected_type: type = dict, default: Any = None) -> Any:
+    """Extract and parse JSON from a Runner result's final_output.
+
+    Runner.run() returns a RunResult object whose .final_output is a raw JSON
+    string. This helper centralises the parse-and-type-check logic so we don't
+    repeat the same try/except block throughout the pipeline.
+    """
+    # When no explicit default is given, use an empty collection that matches
+    # the caller's expected type (list for list steps, None for optional dicts).
+    if default is None:
+        default = [] if expected_type is list else None
+    if hasattr(result, "final_output") and result.final_output:
+        try:
+            data = json.loads(result.final_output)
+            # Only return the parsed value if it is the right Python type;
+            # a type mismatch (e.g. LLM returned a dict when we expected a list)
+            # is treated the same as a parse failure.
+            if isinstance(data, expected_type):
+                return data
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
+            logger.debug("Failed to parse JSON from result: %s", e)
+    return default
+
+
+def _extract_text(result: Any) -> str:
+    """Extract plain text from a Runner result's final_output.
+
+    Used for steps that produce raw Python source code rather than JSON
+    (tool code, guardrail code, agent creation code, runner code).
+    """
+    if hasattr(result, "final_output") and result.final_output:
+        return result.final_output
+    return ""
+
+
+# ── Main pipeline ─────────────────────────────────────────────────────────────
+
+async def generate_agent(specification: str) -> AgentImplementation:
+    """
+    Generate an agent based on a natural language specification.
+
+    Args:
+        specification: Natural language description of the agent to create
+
+    Returns:
+        Complete agent implementation
+    """
+    # ── Pre-flight checks ─────────────────────────────────────────────────────
+    # Validate early so we don't waste an API round-trip on empty input.
+    if not specification or not specification.strip():
+        raise ValueError("Agent specification cannot be empty")
+
+    load_config()
+
+    # Warn (but don't abort) if the API key is missing; the LLM call will fail
+    # later with a clearer error from the SDK itself.
+    if not check_api_key():
+        print_api_key_warning()
+
+    # ── Step 1: Parse the natural-language spec into structured data ──────────
+    # The agent_generator LLM reads the raw specification and returns a JSON
+    # object matching AgentSpecification. If parsing fails we fall back to
+    # safe defaults so the pipeline can continue.
+    logger.info("Step 1: Analyzing agent specification...")
+    agent_spec_result = await Runner.run(
+        agent_generator,
+        f"Analyze this agent specification and extract structured information: {specification}",
+    )
+    logger.debug("Agent spec result: %s", agent_spec_result)
+
+    agent_spec_dict = _extract_json(agent_spec_result, dict, {})
+    # Fill in any fields the LLM omitted rather than letting Pydantic error out.
+    agent_spec_dict.setdefault("name", "DefaultAgent")
+    agent_spec_dict.setdefault("description", "Agent created from specification")
+    agent_spec_dict.setdefault("instructions", specification)
+    agent_specification = AgentSpecification(**agent_spec_dict)
+
+    # ── Step 2: Decide which tools the agent will need ────────────────────────
+    # Expected: a JSON array of tool descriptor objects.
+    logger.info("Step 2: Designing agent tools...")
+    tools_result = await Runner.run(
+        agent_generator,
+        f"Design tools for this agent: {agent_specification.model_dump_json()}",
+    )
+    logger.debug("Tools result: %s", tools_result)
+    tools = _extract_json(tools_result, list, [])
+
+    # ── Step 3: Optionally define a typed output schema ───────────────────────
+    # Not all agents need structured output; None is a valid result here.
+    logger.info("Step 3: Designing output type (if needed)...")
+    output_type_result = await Runner.run(
+        agent_generator,
+        f"Design an output type for this agent if needed: {agent_specification.model_dump_json()}",
+    )
+    logger.debug("Output type result: %s", output_type_result)
+    output_type_dict = _extract_json(output_type_result, dict, None)
+    output_type = OutputTypeDefinition(**output_type_dict) if output_type_dict else None
+
+    # ── Step 4: Decide which guardrails to enforce ────────────────────────────
+    # Guardrails validate inputs before the agent runs and/or outputs after.
+    logger.info("Step 4: Designing guardrails...")
+    guardrails_result = await Runner.run(
+        agent_generator,
+        f"Design guardrails for this agent: {agent_specification.model_dump_json()}",
+    )
+    logger.debug("Guardrails result: %s", guardrails_result)
+    guardrails = _extract_json(guardrails_result, list, [])
+
+    # AgentDesign bundles spec + tools + output_type + guardrails into one
+    # object that every subsequent generation step can reference.
+    agent_design = AgentDesign(
+        specification=agent_specification,
+        tools=tools,
+        output_type=output_type,
+        guardrails=guardrails,
+    )
+
+    # ── Step 5: Generate Python code for each tool ────────────────────────────
+    # One Runner.run() call per tool, so a spec with N tools makes N LLM calls.
+    logger.info("Step 5: Generating tool code...")
+    tool_code_list = []
+    for tool in agent_design.tools:
+        tool_code = await Runner.run(
+            agent_generator,
+            f"Generate code for this tool: {tool}",
+        )
+        logger.debug("Tool code result: %s", tool_code)
+        code = _extract_text(tool_code)
+        if code:
+            tool_code_list.append(code)
+
+    # ── Step 6: Generate the Pydantic output-type class (if applicable) ───────
+    logger.info("Step 6: Generating output type code (if needed)...")
+    output_type_code = None
+    if agent_design.output_type:
+        output_type_code_result = await Runner.run(
+            agent_generator,
+            f"Generate code for this output type: {agent_design.output_type.model_dump_json()}",
+        )
+        logger.debug("Output type code result: %s", output_type_code_result)
+        # Use `or None` so an empty string collapses back to None.
+        output_type_code = _extract_text(output_type_code_result) or None
+
+    # ── Step 7: Generate Python code for each guardrail ───────────────────────
+    logger.info("Step 7: Generating guardrail code...")
+    guardrail_code_list = []
+    for guardrail in agent_design.guardrails:
+        guardrail_code = await Runner.run(
+            agent_generator,
+            f"Generate code for this guardrail: {guardrail}",
+        )
+        logger.debug("Guardrail code result: %s", guardrail_code)
+        code = _extract_text(guardrail_code)
+        if code:
+            guardrail_code_list.append(code)
+
+    # ── Step 8: Generate the Agent(...) constructor call ──────────────────────
+    # This snippet instantiates the agent with its name, instructions, tools,
+    # and guardrails wired in.
+    logger.info("Step 8: Generating agent creation code...")
+    agent_creation_result = await Runner.run(
+        agent_generator,
+        f"Generate code that creates an agent instance based on this design: {agent_design.model_dump_json()}",
+    )
+    logger.debug("Agent creation code result: %s", agent_creation_result)
+    agent_creation_code = _extract_text(agent_creation_result)
+
+    # ── Step 9: Generate the async runner / entry-point snippet ──────────────
+    logger.info("Step 9: Generating runner code...")
+    runner_code_result = await Runner.run(
+        agent_generator,
+        f"Generate code that runs the agent: {agent_design.model_dump_json()}",
+    )
+    logger.debug("Runner code result: %s", runner_code_result)
+    runner_code = _extract_text(runner_code_result)
+
+    # Collect all generated snippets into the intermediate AgentCode model.
+    agent_code = AgentCode(
+        imports=[
+            "import os",
+            "import asyncio",
+            "from dotenv import load_dotenv",
+            "from agents import Runner, function_tool, output_guardrail, GuardrailFunctionOutput",
+            "from typing import Dict, List, Any, Optional",
+            "from pydantic import BaseModel, Field",
+        ],
+        tool_implementations=tool_code_list,
+        output_type_implementation=output_type_code,
+        guardrail_implementations=guardrail_code_list,
+        agent_creation=agent_creation_code,
+        runner_code=runner_code,
+    )
+
+    # ── Assemble all code sections into one main_code string ─────────────────
+    # Sections are joined with double newlines to keep the output readable.
+    # Each section is only included when it has content (guards against empty stubs).
+    sections = ["\n".join(agent_code.imports)]
+    if agent_code.tool_implementations:
+        sections.append("# Tool implementations")
+        sections.append("\n\n".join(agent_code.tool_implementations))
+    if agent_code.output_type_implementation:
+        sections.append("# Output type implementation")
+        sections.append(agent_code.output_type_implementation)
+    if agent_code.guardrail_implementations:
+        sections.append("# Guardrail implementations")
+        sections.append("\n\n".join(agent_code.guardrail_implementations))
+    if agent_code.agent_creation:
+        sections.append("# Agent creation")
+        sections.append(agent_code.agent_creation)
+    if agent_code.runner_code:
+        sections.append("# Runner code")
+        sections.append(agent_code.runner_code)
+    # run_agent() is the stable public API callers use to query the generated agent.
+    sections.append(
+        "# Function to run the agent from external code\n"
+        "async def run_agent(query: str):\n"
+        "    result = await Runner.run(agent, query)\n"
+        "    return result"
+    )
+    agent_code.main_code = "\n\n".join(sections)
+
+    # ── Step 10: Ask the LLM to finalize the full file layout ────────────────
+    # The assembler may reorganize sections, add boilerplate, or split into
+    # multiple files. If it returns a valid dict we use it; otherwise we fall
+    # back to the code we assembled ourselves above.
+    logger.info("Step 10: Assembling agent implementation...")
+    implementation_result = await Runner.run(
+        agent_generator,
+        f"Assemble the complete agent implementation: {agent_code.model_dump_json()}",
+    )
+    logger.debug("Implementation result: %s", implementation_result)
+
+    implementation_dict = _extract_json(implementation_result, dict, {})
+    # Use setdefault so we never overwrite a value the LLM already provided.
+    implementation_dict.setdefault("main_file", agent_code.main_code)
+    implementation_dict.setdefault("installation_instructions", _DEFAULT_INSTALLATION)
+    implementation_dict.setdefault("usage_examples", _DEFAULT_USAGE)
+    implementation_dict.setdefault("additional_files", {})
+    # Always include a requirements.txt unless the assembler already added one.
+    implementation_dict["additional_files"].setdefault(
+        "requirements.txt", _DEFAULT_REQUIREMENTS
+    )
+
+    agent_implementation = AgentImplementation(**implementation_dict)
+
+    # ── Step 11: Validate the assembled implementation ────────────────────────
+    # Currently a stub that always passes (see validation/validator.py).
+    # Future: check syntax, verify imports, run a test query against the agent.
+    logger.info("Step 11: Validating agent implementation...")
+    validation_result = await Runner.run(
+        agent_generator,
+        f"Validate this agent implementation: {agent_implementation.model_dump_json()}",
+    )
+    if hasattr(validation_result, "final_output") and validation_result.final_output:
+        logger.info("Validation message: %s", validation_result.final_output)
+
     return agent_implementation

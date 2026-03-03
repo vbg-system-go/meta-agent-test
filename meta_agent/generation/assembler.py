@@ -12,12 +12,15 @@ from meta_agent.models.implementation import AgentImplementation
 def assemble_agent_implementation() -> AgentImplementation:
     """
     Assemble the complete agent implementation.
-    
+
     Returns:
-        Complete agent implementation with all files
+        AgentImplementation containing the main Python file, any additional
+        supporting files (e.g. requirements.txt), installation instructions,
+        and usage examples.
     """
-    # This is a dummy implementation that will be replaced by the actual LLM call
-    # The real implementation will be called through the OpenAI Agents SDK
+    # TODO: implement with actual LLM call.
+    # The real version receives an AgentCode object and combines its sections
+    # into a well-structured, ready-to-run package.
     main_file_content = """
 # Agent implementation for TestAgent
 from agents import Agent, Runner, function_tool

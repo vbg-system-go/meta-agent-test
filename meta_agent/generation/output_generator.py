@@ -11,12 +11,14 @@ from agents import function_tool
 def generate_output_type_code() -> str:
     """
     Generate code for an output type based on its definition.
-    
+
     Returns:
-        Python code defining the output type
+        Python code defining the output type as a Pydantic BaseModel subclass.
+        The SDK uses the model's schema to validate and parse the agent's output.
     """
-    # This is a dummy implementation that will be replaced by the actual LLM call
-    # The real implementation will be called through the OpenAI Agents SDK
+    # TODO: implement with actual LLM call.
+    # The real version receives an OutputTypeDefinition and emits a Pydantic
+    # model whose fields match the definition's field list.
     return """
 from pydantic import BaseModel, Field
 
